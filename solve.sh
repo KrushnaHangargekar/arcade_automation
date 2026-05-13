@@ -20,7 +20,7 @@ echo -e "${YELLOW}Checking Firestore...${NC}"
 if gcloud firestore databases list --format="value(name)" | grep -q "default"; then
     echo -e "${GREEN}Firestore already exists.${NC}"
 else
-    gcloud firestore databases create --location=europe-west4 --type=firestore-native --quiet
+    gcloud firestore databases create --location=nam5 --type=firestore-native --quiet
 fi
 
 # 4. Dependencies
