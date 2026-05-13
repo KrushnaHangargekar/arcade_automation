@@ -1,38 +1,27 @@
-# Google Cloud Arcade Automation (GSP642)
-Automated script to complete the "Import Data to a Firestore Database" lab.
+# Google Cloud Arcade Automation: Challenge Lab
+Automated script to complete: **Develop Serverless Apps with Firebase: Challenge Lab**.
 
 ## 🚀 One-Click Automation
-This repository contains scripts to automate the following tasks:
-1. Enable required APIs.
-2. Setup Firestore Database (Native Mode).
-3. Install Node.js dependencies.
-4. Generate 1000 test records.
-5. Import records into Firestore.
+This script automates all 6 tasks of the challenge lab:
+1. Create Firestore Database.
+2. Import Netflix CSV Data.
+3. Deploy REST API (v0.1) to Cloud Run.
+4. Update & Deploy REST API (v0.2) to Cloud Run.
+5. Deploy Staging Frontend.
+6. Deploy Production Frontend with REST API integration.
 
-## 🛠️ Usage Instructions
-
-### Method 1: Cloud Shell (Recommended)
-1. Open Cloud Shell in your Google Cloud Console.
-2. Clone this repository:
+## 🛠️ Usage Instructions (Cloud Shell)
+1. Open Cloud Shell in the lab.
+2. Clone the repo:
    ```bash
-   git clone https://github.com/<YOUR_USERNAME>/arcade_automation.git
+   git clone https://github.com/KrushnaHangargekar/arcade_automation.git
    cd arcade_automation
    ```
-3. Run the automation script:
+3. Run the automation:
    ```bash
    chmod +x solve.sh
    ./solve.sh
    ```
 
-### Method 2: Local Windows (PowerShell)
-1. Clone the repo.
-2. Open PowerShell and navigate to the folder.
-3. Run:
-   ```powershell
-   .\solve.ps1
-   ```
-
-## 📂 Project Structure
-- `lab01/`: Contains the Node.js logic for data generation and import.
-- `solve.sh`: The master bash script for full automation.
-- `solve.ps1`: The master PowerShell script for Windows.
+## 📂 Structure
+- `solve.sh`: The master automation script.
