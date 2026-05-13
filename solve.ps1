@@ -12,7 +12,7 @@ $databases = gcloud firestore databases list --format="value(name)"
 if ($databases -match "default") {
     Write-Host "Firestore already exists." -ForegroundColor Green
 } else {
-    gcloud firestore databases create --location=europe-west4 --type=firestore-native --quiet
+    gcloud firestore databases create --location=nam5 --type=firestore-native --quiet
 }
 
 Write-Host "Installing dependencies in lab01..." -ForegroundColor Yellow
