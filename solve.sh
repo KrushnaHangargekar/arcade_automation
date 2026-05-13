@@ -5,29 +5,34 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-echo -e "${YELLOW}Starting Automation for: Import Data to a Firestore Database...${NC}"
+echo -e "${YELLOW}Starting Automation for GSP642...${NC}"
 
+# 1. Project ID
 export PROJECT_ID=$(gcloud config get-value project)
 echo -e "${GREEN}Project ID: $PROJECT_ID${NC}"
 
-echo -e "${YELLOW}Enabling Cloud AI Companion API...${NC}"
+# 2. APIs
+echo -e "${YELLOW}Enabling APIs...${NC}"
 gcloud services enable cloudaicompanion.googleapis.com --quiet
 
-echo -e "${YELLOW}Setting up Firestore in europe-west4...${NC}"
+# 3. Firestore
+echo -e "${YELLOW}Checking Firestore...${NC}"
 if gcloud firestore databases list --format="value(name)" | grep -q "default"; then
-    echo -e "${GREEN}Firestore database already exists.${NC}"
+    echo -e "${GREEN}Firestore already exists.${NC}"
 else
     gcloud firestore databases create --location=europe-west4 --type=firestore-native --quiet
 fi
 
-# We are already in the directory if running from setup, but for standalone:
-# git clone https://github.com/rosera/pet-theory
-# cd pet-theory/lab01
+# 4. Dependencies
+echo -e "${YELLOW}Installing dependencies in lab01...${NC}"
+cd lab01
+npm install --quiet
 
-echo -e "${YELLOW}Running Data Generation...${NC}"
+# 5. Run Tasks
+echo -e "${YELLOW}Generating data...${NC}"
 node createTestData.js 1000
 
-echo -e "${YELLOW}Running Firestore Import...${NC}"
+echo -e "${YELLOW}Importing data to Firestore...${NC}"
 node importTestData.js customers_1000.csv
 
-echo -e "${GREEN}=======================================${NC}"
+echo -e "${GREEN}SUCCESS: All tasks completed!${NC}"
