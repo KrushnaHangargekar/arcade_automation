@@ -1,39 +1,23 @@
 #!/bin/bash
-# ============================================================
 # GSP344 – Develop Serverless Apps with Firebase: Challenge Lab
-# One-click automation | github.com/KrushnaHangargekar/arcade_automation
 # Run in Google Cloud Shell: bash solve.sh
-# ============================================================
-
 set -euo pipefail
 
-# ─── 0. INITIALISATION ────────────────────────────────────────────────────────
 echo "=========================================="
 echo " GSP344 – Firebase Challenge Lab Solver"
 echo "=========================================="
 
+# ── Project ──────────────────────────────────────────────────
 PROJECT_ID=$(gcloud config get-value project 2>/dev/null)
 if [ -z "$PROJECT_ID" ]; then
   PROJECT_ID=$(gcloud projects list \
-    --format='value(PROJECT_ID)' \
-    --filter='qwiklabs-gcp' | head -n 1)
+    --format='value(PROJECT_ID)' --filter='qwiklabs-gcp' | head -n 1)
   gcloud config set project "$PROJECT_ID" --quiet
 fi
-echo "✅  Project : $PROJECT_ID"
+echo "✅  Project: $PROJECT_ID"
 
-# Firestore MUST be in us-west1 (lab requirement)
-FIRESTORE_REGION="us-west1"
-
-# Cloud Run region — default us-central1; override: REGION=us-east1 bash solve.sh
-REGION="${REGION:-us-central1}"
-gcloud config set compute/region "$REGION" --quiet
-gcloud config set run/region     "$REGION" --quiet
-echo "✅  Run Region     : $REGION"
-echo "✅  Firestore Reg. : $FIRESTORE_REGION"
-
-# ─── 1. ENABLE APIS ───────────────────────────────────────────────────────────
-echo ""
-echo "[Setup] Enabling required GCP APIs..."
+# ── Enable APIs ───────────────────────────────────────────────
+echo "[Setup] Enabling APIs..."
 gcloud services enable \
   firestore.googleapis.com \
   run.googleapis.com \
@@ -42,159 +26,169 @@ gcloud services enable \
   --quiet
 echo "✅  APIs enabled."
 
-# ─── CLONE PET-THEORY REPO ────────────────────────────────────────────────────
+# ── Auto-detect the org-policy-allowed region ─────────────────
+# The lab's org policy blocks most regions. We probe Artifact Registry
+# across all common US regions until one succeeds.
+detect_region() {
+  # 1. Explicit override
+  if [ -n "${REGION:-}" ]; then echo "$REGION"; return; fi
+  # 2. Qwiklabs env var
+  if [ -n "${GOOGLE_CLOUD_REGION:-}" ]; then echo "$GOOGLE_CLOUD_REGION"; return; fi
+  # 3. gcloud configured region (may already be set by the lab)
+  local r
+  r=$(gcloud config get-value compute/region 2>/dev/null || true)
+  if [ -n "$r" ]; then echo "$r"; return; fi
+  # 4. Probe Artifact Registry to find what the org policy allows
+  echo "Probing for an allowed region (org policy check)..." >&2
+  local probe="probe-$(date +%s)"
+  for r in us-east1 us-west1 us-west2 us-east4 us-central1 us-south1; do
+    printf "  %-16s ... " "$r" >&2
+    if gcloud artifacts repositories create "$probe" \
+        --repository-format=docker --location="$r" --quiet 2>/dev/null; then
+      gcloud artifacts repositories delete "$probe" \
+        --location="$r" --quiet 2>/dev/null || true
+      echo "✅ allowed" >&2
+      echo "$r"
+      return
+    fi
+    echo "blocked" >&2
+  done
+  echo "❌  ERROR: No allowed region found. Run: REGION=<region> bash solve.sh" >&2
+  exit 1
+}
+
+REGION=$(detect_region)
+gcloud config set compute/region "$REGION" --quiet
+gcloud config set run/region     "$REGION" --quiet
+echo "✅  Run Region     : $REGION"
+echo "✅  Firestore Reg. : us-west1"
+
+# ── Clone pet-theory ──────────────────────────────────────────
 if [ ! -d "pet-theory" ]; then
-  echo "[Setup] Cloning pet-theory repository..."
+  echo "[Setup] Cloning pet-theory..."
   git clone https://github.com/rosera/pet-theory.git
 fi
-echo "✅  pet-theory repo ready."
+echo "✅  pet-theory ready."
 
-# ─── TASK 1 – CREATE FIRESTORE DATABASE ───────────────────────────────────────
+# ══════════════════════════════════════════════════════════════
+# TASK 1 – Create Firestore database (us-west1, Native mode)
+# ══════════════════════════════════════════════════════════════
 echo ""
-echo "=========================================="
-echo "[Task 1] Creating Firestore database..."
-echo "         Mode: Native | Region: $FIRESTORE_REGION"
-echo "=========================================="
+echo "[Task 1] Creating Firestore database (us-west1)..."
 gcloud firestore databases create \
-  --location="$FIRESTORE_REGION" \
+  --location=us-west1 \
   --type=firestore-native \
-  --quiet 2>&1 || echo "⚠️  Firestore already exists — skipping."
-echo "✅  Task 1 complete."
+  --quiet 2>&1 || echo "⚠️  Firestore already exists."
+echo "✅  Task 1 done."
 
-# ─── TASK 2 – IMPORT NETFLIX CSV ──────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════
+# TASK 2 – Import Netflix CSV
+# ══════════════════════════════════════════════════════════════
 echo ""
-echo "=========================================="
 echo "[Task 2] Importing Netflix CSV into Firestore..."
-echo "=========================================="
 pushd pet-theory/lab06/firebase-import-csv/solution > /dev/null
 npm install --silent
 node index.js netflix_titles_original.csv
 popd > /dev/null
-echo "✅  Task 2 complete – Firestore populated."
+echo "✅  Task 2 done."
 
-# ─── TASK 3 – REST API v0.1 ───────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════
+# TASK 3 – REST API v0.1
+# ══════════════════════════════════════════════════════════════
 echo ""
-echo "=========================================="
-echo "[Task 3] Building & deploying REST API v0.1..."
-echo "=========================================="
-gcloud artifacts repositories create rest-api-repo \
-  --repository-format=docker \
-  --location="$REGION" \
-  --quiet 2>&1 || echo "⚠️  Artifact repo already exists — skipping."
+echo "[Task 3] Creating Artifact Registry repo in $REGION..."
 
+# Properly distinguish "already exists" from org-policy error
+AR_LOG=$(gcloud artifacts repositories create rest-api-repo \
+  --repository-format=docker --location="$REGION" --quiet 2>&1) && AR_OK=true || AR_OK=false
+
+if [ "$AR_OK" = "false" ]; then
+  if echo "$AR_LOG" | grep -qi "already.exist\|ALREADY_EXISTS"; then
+    echo "⚠️  Repo already exists — OK."
+  else
+    echo "❌  Failed to create Artifact Registry repo:"
+    echo "$AR_LOG"
+    exit 1
+  fi
+fi
+
+echo "[Task 3] Building & deploying REST API v0.1..."
 pushd pet-theory/lab06/firebase-rest-api/solution-01 > /dev/null
 gcloud builds submit \
   --tag "$REGION-docker.pkg.dev/$PROJECT_ID/rest-api-repo/rest-api:0.1" \
   . --quiet
 gcloud run deploy netflix-dataset-service \
   --image "$REGION-docker.pkg.dev/$PROJECT_ID/rest-api-repo/rest-api:0.1" \
-  --platform managed \
-  --region "$REGION" \
-  --allow-unauthenticated \
-  --max-instances 1 \
-  --quiet
+  --platform managed --region "$REGION" \
+  --allow-unauthenticated --max-instances 1 --quiet
 popd > /dev/null
-echo "✅  Task 3 complete."
+echo "✅  Task 3 done."
 
-# ─── TASK 4 – REST API v0.2 (FIRESTORE-CONNECTED) ────────────────────────────
+# ══════════════════════════════════════════════════════════════
+# TASK 4 – REST API v0.2 (Firestore-connected)
+# ══════════════════════════════════════════════════════════════
 echo ""
-echo "=========================================="
 echo "[Task 4] Building & deploying REST API v0.2..."
-echo "=========================================="
 pushd pet-theory/lab06/firebase-rest-api/solution-02 > /dev/null
 gcloud builds submit \
   --tag "$REGION-docker.pkg.dev/$PROJECT_ID/rest-api-repo/rest-api:0.2" \
   . --quiet
 gcloud run deploy netflix-dataset-service \
   --image "$REGION-docker.pkg.dev/$PROJECT_ID/rest-api-repo/rest-api:0.2" \
-  --platform managed \
-  --region "$REGION" \
-  --allow-unauthenticated \
-  --max-instances 1 \
-  --quiet
+  --platform managed --region "$REGION" \
+  --allow-unauthenticated --max-instances 1 --quiet
 popd > /dev/null
 
 REST_API_URL=$(gcloud run services describe netflix-dataset-service \
-  --region "$REGION" \
-  --format='value(status.url)')
-echo "✅  Task 4 complete – REST API: $REST_API_URL"
+  --region "$REGION" --format='value(status.url)')
+echo "✅  Task 4 done — REST API: $REST_API_URL"
 
-# Smoke-test: the /2019 endpoint must return JSON
-echo "🔍  Smoke testing REST API..."
+# Smoke test
 HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$REST_API_URL/2019")
-if [ "$HTTP_CODE" = "200" ]; then
-  echo "✅  REST API /2019 returned HTTP 200."
-else
-  echo "⚠️  REST API /2019 returned HTTP $HTTP_CODE — check Cloud Run logs."
-fi
+echo "🔍  /2019 smoke test → HTTP $HTTP_CODE"
 
-# ─── TASK 5 – STAGING FRONTEND ────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════
+# TASK 5 – Staging Frontend
+# ══════════════════════════════════════════════════════════════
 echo ""
-echo "=========================================="
 echo "[Task 5] Building & deploying Staging Frontend..."
-echo "=========================================="
 pushd pet-theory/lab06/firebase-frontend > /dev/null
 gcloud builds submit \
   --tag "$REGION-docker.pkg.dev/$PROJECT_ID/rest-api-repo/frontend-staging:0.1" \
   . --quiet
 gcloud run deploy frontend-staging-service \
   --image "$REGION-docker.pkg.dev/$PROJECT_ID/rest-api-repo/frontend-staging:0.1" \
-  --platform managed \
-  --region "$REGION" \
-  --allow-unauthenticated \
-  --max-instances 1 \
-  --quiet
+  --platform managed --region "$REGION" \
+  --allow-unauthenticated --max-instances 1 --quiet
 popd > /dev/null
-echo "✅  Task 5 complete – Staging frontend deployed."
+echo "✅  Task 5 done."
 
-# ─── TASK 6 – PRODUCTION FRONTEND ─────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════
+# TASK 6 – Production Frontend (patch app.js with live API URL)
+# ══════════════════════════════════════════════════════════════
 echo ""
-echo "=========================================="
 echo "[Task 6] Patching app.js → deploying Production Frontend..."
-echo "=========================================="
 
 APP_JS="pet-theory/lab06/firebase-frontend/public/app.js"
 
-echo "--- app.js before patch ---"
-cat "$APP_JS"
-echo "----------------------------"
-
-# The pet-theory app.js has exactly:
-#   const REST_API_SERVICE = "data/netflix.json"
-# and calls:
-#   fetchLocalData(REST_API_SERVICE)
-#
-# We need:
-#   const REST_API_SERVICE = "<live-url>"
-# and the fetch call must append the year:
-#   fetchLocalData(REST_API_SERVICE + "/" + new Date().getFullYear())
-#
-# We write the corrected getPageInfo() function directly so there is
-# no ambiguity about which sed pattern hit or missed.
-
-# Step 1 – Replace the REST_API_SERVICE constant value
+# Patch 1: Replace the REST_API_SERVICE constant value
 sed -i \
   "s|const REST_API_SERVICE = \"data/netflix.json\"|const REST_API_SERVICE = \"${REST_API_URL}\"|g" \
   "$APP_JS"
 
-# Step 2 – Replace the static fetchLocalData call to append /year
-# Original: const info = await fetchLocalData(REST_API_SERVICE)
-# Target  : const info = await fetchLocalData(REST_API_SERVICE + "/" + new Date().getFullYear())
+# Patch 2: Append /<year> to the fetchLocalData call
 sed -i \
   's|fetchLocalData(REST_API_SERVICE)|fetchLocalData(REST_API_SERVICE + "/" + new Date().getFullYear())|g' \
   "$APP_JS"
 
-echo "--- app.js after patch ---"
-cat "$APP_JS"
-echo "--------------------------"
-
-# Verify patch succeeded — abort with clear error if not
+# Verify patch succeeded
 if grep -q "data/netflix.json" "$APP_JS"; then
-  echo "❌  ERROR: app.js patch FAILED — 'data/netflix.json' still present."
-  echo "    Please manually edit $APP_JS and re-run the last gcloud commands."
+  echo "❌  app.js patch FAILED — 'data/netflix.json' still present."
+  echo "    Current app.js content:"
+  cat "$APP_JS"
   exit 1
 fi
-echo "✅  app.js patched successfully."
+echo "✅  app.js patched."
 
 pushd pet-theory/lab06/firebase-frontend > /dev/null
 gcloud builds submit \
@@ -202,24 +196,20 @@ gcloud builds submit \
   . --quiet
 gcloud run deploy frontend-production-service \
   --image "$REGION-docker.pkg.dev/$PROJECT_ID/rest-api-repo/frontend-production:0.1" \
-  --platform managed \
-  --region "$REGION" \
-  --allow-unauthenticated \
-  --max-instances 1 \
-  --quiet
+  --platform managed --region "$REGION" \
+  --allow-unauthenticated --max-instances 1 --quiet
 popd > /dev/null
 
 PROD_URL=$(gcloud run services describe frontend-production-service \
-  --region "$REGION" \
-  --format='value(status.url)')
-echo "✅  Task 6 complete – Production frontend deployed."
+  --region "$REGION" --format='value(status.url)')
+echo "✅  Task 6 done."
 
-# ─── FINAL SUMMARY ────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════
 echo ""
 echo "=========================================="
-echo "  🎉  ALL 6 TASKS COMPLETED SUCCESSFULLY!"
+echo "  🎉  ALL 6 TASKS COMPLETED!"
 echo "=========================================="
-echo "  REST API (v0.2)       : $REST_API_URL"
-echo "  Test /2019            : curl -X GET $REST_API_URL/2019"
-echo "  Production Frontend   : $PROD_URL"
+echo "  REST API          : $REST_API_URL"
+echo "  Test endpoint     : curl $REST_API_URL/2019"
+echo "  Production UI     : $PROD_URL"
 echo "=========================================="
