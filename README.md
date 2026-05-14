@@ -6,40 +6,56 @@ Automated one-click script to complete all **6 tasks** of the Google Cloud Arcad
 
 ---
 
-## 🚀 What This Script Does
+## 🚀 One Command in Cloud Shell
 
-| # | Task | What Gets Deployed |
-|---|------|--------------------|
-| 1 | Create Firestore Database | Native mode · Region `us-west1` |
-| 2 | Import Netflix CSV | Node.js import from `pet-theory` repo |
-| 3 | REST API v0.1 | Cloud Run · `netflix-dataset-service` |
-| 4 | REST API v0.2 | Firestore-connected revision |
-| 5 | Staging Frontend | Cloud Run · `frontend-staging-service` |
-| 6 | Production Frontend | Cloud Run · `frontend-production-service` · real data |
-
----
-
-## 🛠️ Usage (Google Cloud Shell)
+Open **Google Cloud Shell** inside the lab and run:
 
 ```bash
-# 1. Clone this repo
 git clone https://github.com/KrushnaHangargekar/arcade_automation.git
 cd arcade_automation
-
-# 2. Make executable & run
-chmod +x solve.sh
-./solve.sh
+bash solve.sh
 ```
 
-The script auto-detects your project ID and region. No manual edits required.
+> ⚠️ **Must run in Google Cloud Shell**, not locally (Windows/Mac/Linux terminal).  
+> `chmod` is not needed — just use `bash solve.sh`.
 
 ---
 
-## ⚙️ Prerequisites
+## 📋 What Gets Automated
 
-- Lab started and Cloud Shell open
-- Student account credentials active
-- All billing/quota available (handled by the lab)
+| # | Task | Detail |
+|---|------|--------|
+| 1 | Create Firestore Database | Native mode · Region `us-west1` |
+| 2 | Import Netflix CSV | Node.js script from `pet-theory` repo |
+| 3 | REST API v0.1 | Cloud Run · `netflix-dataset-service` |
+| 4 | REST API v0.2 | Firestore-connected · smoke-tested |
+| 5 | Staging Frontend | Cloud Run · `frontend-staging-service` |
+| 6 | Production Frontend | `app.js` patched · `frontend-production-service` |
+
+---
+
+## ⚙️ Optional: Override Cloud Run Region
+
+The default Cloud Run region is `us-central1`. To change it:
+
+```bash
+REGION=us-east1 bash solve.sh
+```
+
+> Firestore is always created in `us-west1` (lab requirement — cannot be overridden).
+
+---
+
+## 🔑 Key Technical Decisions
+
+| Decision | Reason |
+|----------|--------|
+| Firestore → `us-west1` | Explicitly required by lab instructions |
+| Cloud Run → `us-central1` | Default; most capacity, lowest latency |
+| `--max-instances 1` on all services | Lab requirement to stay within quota |
+| Exact `sed` patterns for `app.js` | Matched against the real `pet-theory` source |
+| Smoke-test after Task 4 | Catches Firestore permission issues early |
+| Patch verification guard | Script exits with clear error if `app.js` wasn't updated |
 
 ---
 
@@ -47,15 +63,5 @@ The script auto-detects your project ID and region. No manual edits required.
 
 ```
 arcade_automation/
-└── solve.sh    ← Master automation script (all 6 tasks)
+└── solve.sh    ← Master script — handles all 6 tasks
 ```
-
----
-
-## 🔑 Key Decisions
-
-- **Firestore region**: `us-west1` (as required by lab instructions)
-- **Cloud Run region**: `us-central1` (default; override with `REGION=<region> ./solve.sh`)
-- **`--max-instances 1`** on every Cloud Run deployment (lab requirement)
-- **`app.js` patch**: Handles multiple source variants from the `pet-theory` repo robustly
-- **Idempotent**: Re-running the script skips already-completed steps (Firestore / Artifact Registry creation)
