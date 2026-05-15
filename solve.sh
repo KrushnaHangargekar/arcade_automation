@@ -129,7 +129,9 @@ if [ "$START_TASK" -le 5 ]; then
   gcloud run deploy frontend-staging-service \
     --image "$REGION-docker.pkg.dev/$PROJECT_ID/rest-api-repo/frontend-staging:0.1" \
     --platform managed --region "$REGION" \
-    --allow-unauthenticated --max-instances 1 --quiet
+    --allow-unauthenticated --max-instances 1 \
+    --set-env-vars "REST_API_SERVICE=$REST_API_URL" \
+    --quiet
   popd > /dev/null
   echo "✅ Task 5 done"
 fi
@@ -157,7 +159,9 @@ if [ "$START_TASK" -le 6 ]; then
   gcloud run deploy frontend-production-service \
     --image "$REGION-docker.pkg.dev/$PROJECT_ID/rest-api-repo/frontend-production:0.1" \
     --platform managed --region "$REGION" \
-    --allow-unauthenticated --max-instances 1 --quiet
+    --allow-unauthenticated --max-instances 1 \
+    --set-env-vars "REST_API_SERVICE=$REST_API_URL" \
+    --quiet
   popd > /dev/null
   echo "✅ Task 6 done"
 fi
