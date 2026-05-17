@@ -1,32 +1,34 @@
-# GSP344 – Develop Serverless Apps with Firebase: Challenge Lab
-# Arcade Automation
+# 🕹️ Google Cloud Arcade – Automation Hub
 
-Automated one-click script to complete all **6 tasks** of the Google Cloud Arcade lab:
-> **GSP344 – Develop Serverless Apps with Firebase: Challenge Lab**
+One-click bash scripts that automate Google Cloud Arcade labs.  
+Run directly in **Google Cloud Shell** inside the lab environment.
 
 ---
 
-## 🚀 One Command in Cloud Shell
-
-Open **Google Cloud Shell** inside the lab and run:
+## 🚀 Quick Start
 
 ```bash
 git clone https://github.com/KrushnaHangargekar/arcade_automation.git
 cd arcade_automation
-bash solve.sh
 ```
 
-> ⚠️ **Must run in Google Cloud Shell**, not locally (Windows/Mac/Linux terminal).  
-> `chmod` is not needed — just use `bash solve.sh`.
+Then navigate to the specific lab folder and run its `solve.sh`.
 
 ---
 
-## 📋 What Gets Automated
+## 📚 Available Labs
+
+### GSP344 – Develop Serverless Apps with Firebase: Challenge Lab
+
+```bash
+cd arcade_automation
+bash solve.sh
+```
 
 | # | Task | Detail |
 |---|------|--------|
-| 1 | Create Firestore Database | Native mode · Region `us-west1` |
-| 2 | Import Netflix CSV | Node.js script from `pet-theory` repo |
+| 1 | Create Firestore Database | Native mode · Auto-detected region |
+| 2 | Import Netflix CSV | Node.js import from `pet-theory` repo |
 | 3 | REST API v0.1 | Cloud Run · `netflix-dataset-service` |
 | 4 | REST API v0.2 | Firestore-connected · smoke-tested |
 | 5 | Staging Frontend | Cloud Run · `frontend-staging-service` |
@@ -34,34 +36,79 @@ bash solve.sh
 
 ---
 
-## ⚙️ Optional: Override Cloud Run Region
+### GSP699 – Migrating a Monolithic Website to Microservices on GKE
 
-The default Cloud Run region is `us-central1`. To change it:
+```bash
+cd arcade_automation/GSP699
+bash solve.sh
+```
+
+> Resume from a specific task (e.g. if cluster already exists):
+> ```bash
+> bash solve.sh 4
+> ```
+
+| # | Task | Detail |
+|---|------|--------|
+| 1 | Clone source repo | Install NodeJS deps via `setup.sh` |
+| 2 | Create GKE cluster | `fancy-cluster` · 3 nodes · `e2-standard-4` |
+| 3 | Deploy Monolith | `deploy-monolith.sh` · LoadBalancer service |
+| 4 | Migrate Orders | Cloud Build image · GKE deploy · reconfigure monolith |
+| 5 | Migrate Products | Cloud Build image · GKE deploy · reconfigure monolith |
+| 6 | Migrate Frontend + Delete Monolith | Final microservices deployment · monolith deleted |
+
+---
+
+## ⚙️ Options
+
+### GSP344 – Override region
 
 ```bash
 REGION=us-east1 bash solve.sh
 ```
 
-> Firestore is always created in `us-west1` (lab requirement — cannot be overridden).
+### GSP699 – Override zone/region
+
+```bash
+ZONE=us-central1-a REGION=us-central1 bash GSP699/solve.sh
+```
+
+### Both labs – Resume from a task
+
+```bash
+bash solve.sh 3        # start from task 3
+```
+
+---
+
+## ⚠️ Important Notes
+
+- Run **only** in **Google Cloud Shell** inside the lab
+- Use **Incognito mode** to avoid personal account conflicts
+- Do **not** run on your personal GCP project (charges may apply)
+- Scripts are **idempotent** – safe to re-run if interrupted
+
+---
+
+## 📂 Repository Structure
+
+```
+arcade_automation/
+├── solve.sh          ← GSP344 master script
+└── GSP699/
+    └── solve.sh      ← GSP699 master script
+```
 
 ---
 
 ## 🔑 Key Technical Decisions
 
-| Decision | Reason |
-|----------|--------|
-| Firestore → `us-west1` | Explicitly required by lab instructions |
-| Cloud Run → `us-central1` | Default; most capacity, lowest latency |
-| `--max-instances 1` on all services | Lab requirement to stay within quota |
-| Exact `sed` patterns for `app.js` | Matched against the real `pet-theory` source |
-| Smoke-test after Task 4 | Catches Firestore permission issues early |
-| Patch verification guard | Script exits with clear error if `app.js` wasn't updated |
-
----
-
-## 📂 Structure
-
-```
-arcade_automation/
-└── solve.sh    ← Master script — handles all 6 tasks
-```
+| Lab | Decision | Reason |
+|-----|----------|--------|
+| GSP344 | Auto-detect allowed region via Artifact Registry probe | Org policy differs per lab |
+| GSP344 | `--max-instances 1` on all services | Lab quota requirement |
+| GSP344 | Exact `sed` pattern for `app.js` | Matched against real `pet-theory` source |
+| GSP699 | Write `.env.monolith` directly (no `nano`) | Fully non-interactive |
+| GSP699 | `wait_for_ip` polls 30× with 10s delay | LoadBalancer IP takes time to provision |
+| GSP699 | Save IPs to `/tmp/` between tasks | Allows safe `--start-task N` resumption |
+| GSP699 | Idempotent deployment checks | Re-runs won't duplicate resources |
