@@ -11,7 +11,15 @@ fi
 
 export PROJECT_ID=$(gcloud config get-value project)
 export PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
-export REGION="${REGION:-us-central1}"
+
+if [[ -z "${REGION:-}" ]]; then
+  ZONE=$(gcloud config get-value compute/zone 2>/dev/null || true)
+  if [[ -n "$ZONE" ]]; then
+    export REGION=${ZONE%-*}
+  else
+    export REGION="us-central1"
+  fi
+fi
 gcloud config set compute/region $REGION
 
 echo "Enabling APIs..."
