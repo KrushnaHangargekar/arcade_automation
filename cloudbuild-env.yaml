@@ -1,0 +1,36 @@
+# cloudbuild (delivery) for hello-cloudbuild-env
+# See README for usage instructions
+steps:
+- name: 'gcr.io/cloud-builders/kubectl'
+  id: Deploy
+  args:
+  - 'apply'
+  - '-f'
+  - 'kubernetes.yaml'
+  env:
+  - 'CLOUDSDK_COMPUTE_REGION=us-east4'
+  - 'CLOUDSDK_CONTAINER_CLUSTER=hello-cloudbuild'
+
+- name: 'gcr.io/cloud-builders/git'
+  secretEnv: ['SSH_KEY']
+  entrypoint: 'bash'
+  args:
+  - -c
+  - |
+    echo "$$SSH_KEY" >> /root/.ssh/id_rsa
+    chmod 400 /root/.ssh/id_rsa
+    cp known_hosts.github /root/.ssh/known_hosts
+  volumes:
+  - name: 'ssh'
+    path: /root/.ssh
+
+- name: 'gcr.io/cloud-builders/git'
+  args:
+  - clone
+  - --recurse-submodules
+  - git@github.com:${GITHUB_USERNAME}/hello-cloudbuild-env.git
+  volumes:
+  - name: ssh
+    path: /root/.ssh
+
+# Copy deployed manifest to production branch (see full script for details)
