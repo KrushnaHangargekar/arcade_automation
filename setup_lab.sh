@@ -4,14 +4,14 @@ set -euo pipefail
 # This script is intended to be run in Google Cloud Shell.
 # Before running, export GITHUB_USERNAME and USER_EMAIL.
 
-if [[ -z "${GITHUB_USERNAME:-}" || -z "${USER_EMAIL:-}" ]]; then
-  echo "Set GITHUB_USERNAME and USER_EMAIL before running."
+if [[ -z "${GITHUB_USERNAME:-}" || -z "${USER_EMAIL:-}" || -z "${GH_TOKEN:-}" ]]; then
+  echo "Set GITHUB_USERNAME, USER_EMAIL, and GH_TOKEN before running."
   exit 1
 fi
 
 export PROJECT_ID=$(gcloud config get-value project)
 export PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
-export REGION=us-east4
+export REGION="${REGION:-us-central1}"
 gcloud config set compute/region $REGION
 
 echo "Enabling APIs..."
@@ -101,13 +101,12 @@ CB
 # Initialize git and push app repo
 cd ~/hello-cloudbuild-app
 git init
-git config credential.helper gcloud.sh
 git config user.name "$GITHUB_USERNAME"
 git config user.email "$USER_EMAIL"
 git add .
 git commit -m "initial commit"
 # Add GitHub remote
-git remote add origin https://github.com/${GITHUB_USERNAME}/hello-cloudbuild-app
+git remote add origin https://${GITHUB_USERNAME}:${GH_TOKEN}@github.com/${GITHUB_USERNAME}/hello-cloudbuild-app.git
 git branch -M master
 git push -u origin master
 
@@ -212,14 +211,13 @@ ENV
 # Initialize env git and push branches
 cd ~/hello-cloudbuild-env
 git init
-git config credential.helper gcloud.sh
 git config user.name "$GITHUB_USERNAME"
 git config user.email "$USER_EMAIL"
 cp kubernetes.yaml.tpl kubernetes.yaml
 git add .
 git commit -m "initial commit"
 # Push to GitHub
-git remote add origin https://github.com/${GITHUB_USERNAME}/hello-cloudbuild-env
+git remote add origin https://${GITHUB_USERNAME}:${GH_TOKEN}@github.com/${GITHUB_USERNAME}/hello-cloudbuild-env.git
 git branch -M master
 git push -u origin master
 
